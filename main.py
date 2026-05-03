@@ -12,7 +12,7 @@ TOPICS = os.environ.get(
 
 
 def generate_post(niche: str, topics: list[str]) -> str:
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
     topic = random.choice(topics).strip()
 
     prompt = f"""Write a LinkedIn post about: {topic}
