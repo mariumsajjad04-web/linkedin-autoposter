@@ -2,32 +2,24 @@ name: LinkedIn Auto Post
 
 on:
   schedule:
-    # Peak hours — times in UTC (India is UTC+5:30)
-    # 8:00 AM IST  = 2:30 AM UTC  → rounded to 2:30
-    # 12:00 PM IST = 6:30 AM UTC  → rounded to 6:30
-    # 6:00 PM IST  = 12:30 PM UTC → rounded to 12:30
-    - cron: '30 2 * * 1-5'   # 8:00 AM IST, Mon–Fri
-    - cron: '30 6 * * 1-5'   # 12:00 PM IST, Mon–Fri
-    - cron: '30 12 * * 1-5'  # 6:00 PM IST, Mon–Fri
-  workflow_dispatch:  # lets you trigger manually from GitHub UI
+    - cron: '30 2 * * 1-5'
+    - cron: '30 6 * * 1-5'
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   post:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Generate and post to LinkedIn
+      - run: python main.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
@@ -37,4 +29,3 @@ jobs:
           LINKEDIN_NICHE: ${{ secrets.LINKEDIN_NICHE }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           LINKEDIN_TOPICS: ${{ secrets.LINKEDIN_TOPICS }}
-        run: python main.py
