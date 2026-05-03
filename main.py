@@ -1,7 +1,7 @@
 import os
 import random
 import requests
-import google.generativeai as genai
+from google import genai
 
 
 NICHE = os.environ.get("LINKEDIN_NICHE", "tech and software development")
@@ -12,8 +12,7 @@ TOPICS = os.environ.get(
 
 
 def generate_post(niche: str, topics: list[str]) -> str:
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     topic = random.choice(topics).strip()
 
     prompt = f"""Write a LinkedIn post about: {topic}
@@ -30,7 +29,7 @@ Style:
 
 Output only the post text, nothing else."""
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
     return response.text
 
 
