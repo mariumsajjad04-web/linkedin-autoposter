@@ -35,36 +35,36 @@ Output only the post text, nothing else."""
 
 def post_to_linkedin(access_token: str, content: str) -> str:
     person_id = os.environ["LINKEDIN_PERSON_ID"].strip()
+    author_urn = f"urn:li:person:{person_id}"
     headers = {
         "Authorization": f"Bearer {access_token.strip()}",
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202304",
+        "LinkedIn-Version": "202408",
         "X-Restli-Protocol-Version": "2.0.0",
     }
     payload = {
-        "author": f"urn:li:member:{person_id}",
+        "author": author_urn,
+        "commentary": content,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": [],
+        },
         "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": content},
-                "shareMediaCategory": "NONE",
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-        },
+        "isReshareDisabledByAuthor": False,
     }
     resp = requests.post(
-        "https://api.linkedin.com/v2/ugcPosts",
+        "https://api.linkedin.com/rest/posts",
         headers=headers,
         json=payload,
         timeout=10,
     )
     if not resp.ok:
         print(f"LinkedIn API error {resp.status_code}: {resp.text}")
-        print(f"Author URN sent: urn:li:member:{person_id}")
+        print(f"Author URN sent: {author_urn}")
     resp.raise_for_status()
-    return resp.json().get("id", "unknown")
+    return resp.headers.get("x-restli-id", "unknown")
 
 
 def refresh_access_token() -> str:
