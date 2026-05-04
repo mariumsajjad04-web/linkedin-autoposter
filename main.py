@@ -1,6 +1,7 @@
 import os
 import random
-import requests
+import smtplib
+from email.mime.text import MIMEText
 from google import genai
 
 
@@ -33,71 +34,22 @@ Output only the post text, nothing else."""
     return response.text
 
 
-def post_to_linkedin(access_token: str, content: str) -> str:
-    person_id = os.environ["LINKEDIN_PERSON_ID"].strip()
-    print(f"PERSON_ID length: {len(person_id)}, all-digits: {person_id.isdigit()}")
+def email_post(content: str) -> None:
+    user = os.environ["GMAIL_USER"].strip()
+    pwd = os.environ["GMAIL_APP_PASSWORD"].strip()
 
-    author_urn = f"urn:li:person:{person_id}"
-    headers = {
-        "Authorization": f"Bearer {access_token.strip()}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-    }
-    payload = {
-        "author": author_urn,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": content},
-                "shareMediaCategory": "NONE",
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-        },
-    }
-    resp = requests.post(
-        "https://api.linkedin.com/v2/ugcPosts",
-        headers=headers,
-        json=payload,
-        timeout=10,
-    )
-    if not resp.ok:
-        print(f"LinkedIn API error {resp.status_code}: {resp.text}")
-        print(f"Author URN sent: {author_urn}")
-    resp.raise_for_status()
-    return resp.json().get("id", "unknown")
+    msg = MIMEText(content)
+    msg["Subject"] = "Your LinkedIn post for today (copy & paste)"
+    msg["From"] = user
+    msg["To"] = user
 
-
-def refresh_access_token() -> str:
-    resp = requests.post(
-        "https://www.linkedin.com/oauth/v2/accessToken",
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": os.environ["LINKEDIN_REFRESH_TOKEN"],
-            "client_id": os.environ["LINKEDIN_CLIENT_ID"],
-            "client_secret": os.environ["LINKEDIN_CLIENT_SECRET"],
-        },
-        timeout=10,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+        s.login(user, pwd)
+        s.send_message(msg)
 
 
 if __name__ == "__main__":
-    # Use refresh token if available, otherwise fall back to stored access token
-    if os.environ.get("LINKEDIN_REFRESH_TOKEN", "").strip():
-        access_token = refresh_access_token()
-        print("Access token refreshed.")
-    else:
-        access_token = os.environ["LINKEDIN_ACCESS_TOKEN"].strip()
-
-    if os.environ.get("TEST_MODE", "").strip() == "1":
-        post_content = "Testing automated LinkedIn posting setup. Please ignore."
-        print(f"--- TEST MODE: Using placeholder content ---")
-    else:
-        post_content = generate_post(NICHE, TOPICS)
-        print(f"--- Generated Post ---\n{post_content}\n----------------------")
-
-    post_id = post_to_linkedin(access_token, post_content)
-    print(f"Posted successfully. Post ID: {post_id}")
+    post_content = generate_post(NICHE, TOPICS)
+    print(f"--- Generated Post ---\n{post_content}\n----------------------")
+    email_post(post_content)
+    print("Email sent successfully.")
