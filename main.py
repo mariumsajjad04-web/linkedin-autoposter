@@ -39,7 +39,7 @@ def post_to_linkedin(access_token: str, content: str) -> str:
     headers = {
         "Authorization": f"Bearer {access_token.strip()}",
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202408",
+        "LinkedIn-Version": "202504",
         "X-Restli-Protocol-Version": "2.0.0",
     }
     payload = {
