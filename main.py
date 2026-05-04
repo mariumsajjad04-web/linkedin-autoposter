@@ -42,7 +42,7 @@ def post_to_linkedin(access_token: str, content: str) -> str:
         "X-Restli-Protocol-Version": "2.0.0",
     }
     payload = {
-        "author": f"urn:li:person:{person_id}",
+        "author": f"urn:li:member:{person_id}",
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
@@ -62,7 +62,7 @@ def post_to_linkedin(access_token: str, content: str) -> str:
     )
     if not resp.ok:
         print(f"LinkedIn API error {resp.status_code}: {resp.text}")
-        print(f"Author URN sent: urn:li:person:{person_id}")
+        print(f"Author URN sent: urn:li:member:{person_id}")
     resp.raise_for_status()
     return resp.json().get("id", "unknown")
 
