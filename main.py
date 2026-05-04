@@ -35,27 +35,29 @@ Output only the post text, nothing else."""
 
 def post_to_linkedin(access_token: str, content: str) -> str:
     person_id = os.environ["LINKEDIN_PERSON_ID"].strip()
+    print(f"PERSON_ID length: {len(person_id)}, all-digits: {person_id.isdigit()}")
+
     author_urn = f"urn:li:person:{person_id}"
     headers = {
         "Authorization": f"Bearer {access_token.strip()}",
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202504",
         "X-Restli-Protocol-Version": "2.0.0",
     }
     payload = {
         "author": author_urn,
-        "commentary": content,
-        "visibility": "PUBLIC",
-        "distribution": {
-            "feedDistribution": "MAIN_FEED",
-            "targetEntities": [],
-            "thirdPartyDistributionChannels": [],
-        },
         "lifecycleState": "PUBLISHED",
-        "isReshareDisabledByAuthor": False,
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {"text": content},
+                "shareMediaCategory": "NONE",
+            }
+        },
+        "visibility": {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        },
     }
     resp = requests.post(
-        "https://api.linkedin.com/rest/posts",
+        "https://api.linkedin.com/v2/ugcPosts",
         headers=headers,
         json=payload,
         timeout=10,
@@ -64,7 +66,7 @@ def post_to_linkedin(access_token: str, content: str) -> str:
         print(f"LinkedIn API error {resp.status_code}: {resp.text}")
         print(f"Author URN sent: {author_urn}")
     resp.raise_for_status()
-    return resp.headers.get("x-restli-id", "unknown")
+    return resp.json().get("id", "unknown")
 
 
 def refresh_access_token() -> str:
@@ -90,8 +92,12 @@ if __name__ == "__main__":
     else:
         access_token = os.environ["LINKEDIN_ACCESS_TOKEN"].strip()
 
-    post_content = generate_post(NICHE, TOPICS)
-    print(f"--- Generated Post ---\n{post_content}\n----------------------")
+    if os.environ.get("TEST_MODE", "").strip() == "1":
+        post_content = "Testing automated LinkedIn posting setup. Please ignore."
+        print(f"--- TEST MODE: Using placeholder content ---")
+    else:
+        post_content = generate_post(NICHE, TOPICS)
+        print(f"--- Generated Post ---\n{post_content}\n----------------------")
 
     post_id = post_to_linkedin(access_token, post_content)
     print(f"Posted successfully. Post ID: {post_id}")

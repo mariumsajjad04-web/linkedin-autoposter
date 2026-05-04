@@ -29,3 +29,4 @@ jobs:
           LINKEDIN_NICHE: ${{ secrets.LINKEDIN_NICHE }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           LINKEDIN_TOPICS: ${{ secrets.LINKEDIN_TOPICS }}
+          TEST_MODE: ${{ vars.TEST_MODE }}
