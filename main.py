@@ -60,6 +60,9 @@ def post_to_linkedin(access_token: str, content: str) -> str:
         json=payload,
         timeout=10,
     )
+    if not resp.ok:
+        print(f"LinkedIn API error {resp.status_code}: {resp.text}")
+        print(f"Author URN sent: urn:li:person:{person_id}")
     resp.raise_for_status()
     return resp.json().get("id", "unknown")
 
