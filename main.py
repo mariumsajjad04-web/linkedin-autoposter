@@ -34,9 +34,9 @@ Output only the post text, nothing else."""
 
 
 def post_to_linkedin(access_token: str, content: str) -> str:
-    person_id = os.environ["LINKEDIN_PERSON_ID"]
+    person_id = os.environ["LINKEDIN_PERSON_ID"].strip()
     headers = {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {access_token.strip()}",
         "Content-Type": "application/json",
         "LinkedIn-Version": "202304",
         "X-Restli-Protocol-Version": "2.0.0",
@@ -81,11 +81,11 @@ def refresh_access_token() -> str:
 
 if __name__ == "__main__":
     # Use refresh token if available, otherwise fall back to stored access token
-    if os.environ.get("LINKEDIN_REFRESH_TOKEN"):
+    if os.environ.get("LINKEDIN_REFRESH_TOKEN", "").strip():
         access_token = refresh_access_token()
         print("Access token refreshed.")
     else:
-        access_token = os.environ["LINKEDIN_ACCESS_TOKEN"]
+        access_token = os.environ["LINKEDIN_ACCESS_TOKEN"].strip()
 
     post_content = generate_post(NICHE, TOPICS)
     print(f"--- Generated Post ---\n{post_content}\n----------------------")
