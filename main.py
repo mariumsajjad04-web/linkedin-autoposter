@@ -1,6 +1,7 @@
 import os
 import random
 import smtplib
+import time
 from email.mime.text import MIMEText
 from google import genai
 
@@ -155,11 +156,29 @@ Then add 3 relevant hashtags on the final line.
 Output ONLY the post text. No preamble, no explanation, no "Here's your post:".
 """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-    )
-    return response.text
+    # Try multiple models with retry — Gemini sometimes gets overloaded
+    models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+    last_error = None
+
+    for model in models_to_try:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(model=model, contents=prompt)
+                return response.text
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                # Retry on 503 (overloaded) or 429 (rate limit) only
+                if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    print(f"Model {model} attempt {attempt + 1} failed ({err_str[:80]}). Retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+                # Other errors (auth, model not found): try next model immediately
+                print(f"Model {model} hard-failed: {err_str[:100]}. Trying next model...")
+                break
+
+    raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
 
 def email_post(content: str) -> None:
