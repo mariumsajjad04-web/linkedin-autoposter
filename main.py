@@ -2,8 +2,11 @@ import os
 import random
 import smtplib
 import time
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from google import genai
+from image_generator import generate_card
 
 
 # ============================================================
@@ -181,14 +184,33 @@ Output ONLY the post text. No preamble, no explanation, no "Here's your post:".
     raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
 
-def email_post(content: str) -> None:
+def email_post(content: str, image_path: str | None = None) -> None:
     user = os.environ["GMAIL_USER"].strip()
     pwd = os.environ["GMAIL_APP_PASSWORD"].strip()
 
-    msg = MIMEText(content)
-    msg["Subject"] = "Your LinkedIn post for today (copy & paste)"
+    msg = MIMEMultipart()
+    msg["Subject"] = "Your LinkedIn post for today (text + image)"
     msg["From"] = user
     msg["To"] = user
+
+    body = (
+        f"{content}\n\n"
+        "─────────────────────\n"
+        "📋 INSTRUCTIONS:\n"
+        "1. Copy the post text above\n"
+        "2. Save the attached image (post_card.png)\n"
+        "3. On LinkedIn: click 'Start a post' → paste text → attach image → Post\n"
+        "─────────────────────\n"
+    )
+    msg.attach(MIMEText(body, "plain"))
+
+    if image_path and os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header(
+                "Content-Disposition", "attachment", filename="post_card.png"
+            )
+            msg.attach(img)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
         s.login(user, pwd)
@@ -198,5 +220,13 @@ def email_post(content: str) -> None:
 if __name__ == "__main__":
     post_content = generate_post()
     print(f"--- Generated Post ---\n{post_content}\n----------------------")
-    email_post(post_content)
+
+    image_path = None
+    try:
+        image_path = generate_card(post_content)
+        print(f"Image generated: {image_path}")
+    except Exception as e:
+        print(f"Image generation failed (sending text only): {e}")
+
+    email_post(post_content, image_path)
     print("Email sent successfully.")
