@@ -1,91 +1,120 @@
 """
-Generate a Canva-style quote card image for each LinkedIn post.
-Uses PIL only — no external API, zero cost, works on GitHub Actions.
+Generate distinct, modern image templates for each LinkedIn post type.
+4 templates: code_terminal, quote_bold, checklist, split_reflection.
+Pure PIL — works on GitHub Actions, zero external dependencies.
 """
 import os
+import random
 import textwrap
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 
 # ============================================================
-# DESIGN PRESETS — rotate randomly for variety
+# COLOR PALETTES — designer-grade, modern
 # ============================================================
-TEMPLATES = [
+PALETTES = [
     {
-        "name": "deep_purple",
-        "bg_top": (88, 28, 135),       # Deep purple
-        "bg_bottom": (30, 27, 75),     # Almost black
-        "accent": (250, 204, 21),      # Yellow
-        "text_color": (255, 255, 255),
+        "name": "midnight",
+        "bg": (13, 17, 23),         # GitHub dark
+        "bg_alt": (22, 27, 34),
+        "accent": (88, 166, 255),   # Blue
+        "accent2": (255, 123, 114), # Coral
+        "text": (240, 246, 252),
+        "muted": (139, 148, 158),
     },
     {
-        "name": "ocean",
-        "bg_top": (15, 23, 42),        # Slate-900
-        "bg_bottom": (30, 64, 175),    # Blue-800
-        "accent": (34, 211, 238),      # Cyan
-        "text_color": (255, 255, 255),
+        "name": "neon_purple",
+        "bg": (15, 10, 30),
+        "bg_alt": (30, 20, 60),
+        "accent": (192, 132, 252),  # Purple
+        "accent2": (244, 114, 182), # Pink
+        "text": (250, 250, 255),
+        "muted": (160, 150, 180),
+    },
+    {
+        "name": "emerald",
+        "bg": (5, 15, 25),
+        "bg_alt": (10, 30, 40),
+        "accent": (52, 211, 153),   # Emerald
+        "accent2": (251, 191, 36),  # Amber
+        "text": (240, 255, 250),
+        "muted": (130, 160, 150),
     },
     {
         "name": "sunset",
-        "bg_top": (124, 45, 18),       # Orange-900
-        "bg_bottom": (88, 28, 135),    # Purple-900
-        "accent": (251, 191, 36),      # Amber
-        "text_color": (255, 255, 255),
-    },
-    {
-        "name": "forest",
-        "bg_top": (6, 78, 59),         # Emerald-900
-        "bg_bottom": (15, 23, 42),     # Slate-900
-        "accent": (52, 211, 153),      # Emerald-400
-        "text_color": (255, 255, 255),
-    },
-    {
-        "name": "minimal_dark",
-        "bg_top": (10, 10, 10),
-        "bg_bottom": (40, 40, 40),
-        "accent": (255, 255, 255),
-        "text_color": (255, 255, 255),
+        "bg": (25, 10, 30),
+        "bg_alt": (60, 20, 50),
+        "accent": (251, 146, 60),   # Orange
+        "accent2": (236, 72, 153),  # Pink
+        "text": (255, 250, 240),
+        "muted": (180, 140, 160),
     },
 ]
 
 
-def find_font(size, bold=False):
-    """Find a usable system font that supports the requested weight."""
-    candidates_bold = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-        "C:\\Windows\\Fonts\\arialbd.ttf",
-        "C:\\Windows\\Fonts\\seguibl.ttf",
-    ]
-    candidates_regular = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-        "C:\\Windows\\Fonts\\segoeui.ttf",
-    ]
-    paths = candidates_bold if bold else candidates_regular
+# ============================================================
+# FONT DISCOVERY
+# ============================================================
+def find_font(size, weight="regular"):
+    """Find a usable system font, preferring modern variants."""
+    if weight == "bold":
+        paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "C:\\Windows\\Fonts\\arialbd.ttf",
+            "C:\\Windows\\Fonts\\seguibl.ttf",
+        ]
+    elif weight == "mono":
+        paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+            "C:\\Windows\\Fonts\\consolab.ttf",
+            "C:\\Windows\\Fonts\\consola.ttf",
+        ]
+    else:
+        paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+        ]
     for path in paths:
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
     return ImageFont.load_default()
 
 
-def make_gradient(width, height, top_color, bottom_color):
-    """Create a vertical gradient background."""
-    img = Image.new("RGB", (width, height), top_color)
+# ============================================================
+# HELPERS
+# ============================================================
+def make_gradient(width, height, top, bottom):
+    img = Image.new("RGB", (width, height), top)
     draw = ImageDraw.Draw(img)
     for y in range(height):
-        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * y / height)
-        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * y / height)
-        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * y / height)
+        r = int(top[0] + (bottom[0] - top[0]) * y / height)
+        g = int(top[1] + (bottom[1] - top[1]) * y / height)
+        b = int(top[2] + (bottom[2] - top[2]) * y / height)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
     return img
 
 
-def extract_hook(post_text, max_chars=140):
-    """Pull the hook (first compelling line) from the post."""
-    lines = [line.strip() for line in post_text.strip().split("\n") if line.strip()]
-    # Skip hashtag-only or very short lines at start
+def add_glow_dot(draw, x, y, radius, color):
+    """Soft glowing accent dot."""
+    for r in range(radius * 3, 0, -1):
+        alpha = int(255 * (1 - r / (radius * 3)) ** 2)
+        c = (*color, alpha) if len(color) == 3 else color
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
+
+
+def draw_text_centered(draw, y, text, font, color, width):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((width - tw) // 2, y), text, fill=color, font=font)
+
+
+def extract_hook(post_text, max_chars=120):
+    lines = [l.strip() for l in post_text.strip().split("\n") if l.strip()]
     for line in lines:
         if line.startswith("#"):
             continue
@@ -95,59 +124,230 @@ def extract_hook(post_text, max_chars=140):
     return lines[0][:max_chars] if lines else "New post"
 
 
-def generate_card(post_text, output_path="post_card.png"):
-    """Generate a Canva-style quote card from post text."""
-    import random
+def add_branding(draw, width, height, palette):
+    """Consistent footer branding across all templates."""
+    f_name = find_font(28, "bold")
+    f_handle = find_font(22, "regular")
 
-    template = random.choice(TEMPLATES)
-    width, height = 1200, 1200  # Square for LinkedIn
+    # Bottom accent line
+    draw.rectangle([(80, height - 100), (130, height - 96)], fill=palette["accent"])
 
-    # Background gradient
-    img = make_gradient(width, height, template["bg_top"], template["bg_bottom"])
+    # Name + handle
+    draw.text((80, height - 80), "MARIUM SAJJAD",
+              fill=palette["text"], font=f_name)
+    draw.text((80, height - 45), "Building stuff · Karachi 🇵🇰",
+              fill=palette["muted"], font=f_handle)
+
+    # Top-right accent
+    draw.rectangle([(width - 130, 80), (width - 80, 84)], fill=palette["accent2"])
+
+
+# ============================================================
+# TEMPLATE 1: CODE TERMINAL (for build stories)
+# ============================================================
+def template_code_terminal(post_text, palette):
+    W, H = 1200, 1200
+    img = make_gradient(W, H, palette["bg"], palette["bg_alt"])
     draw = ImageDraw.Draw(img)
 
-    # Accent bar (top-left)
-    draw.rectangle([(80, 80), (200, 90)], fill=template["accent"])
+    # Terminal window mockup
+    term_x1, term_y1 = 100, 250
+    term_x2, term_y2 = W - 100, H - 250
 
-    # Hook text
-    hook = extract_hook(post_text)
-    font_main = find_font(64, bold=True)
+    # Window shadow
+    shadow = Image.new("RGBA", (term_x2 - term_x1 + 40, term_y2 - term_y1 + 40), (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow)
+    shadow_draw.rounded_rectangle([0, 0, term_x2 - term_x1 + 40, term_y2 - term_y1 + 40],
+                                   radius=20, fill=(0, 0, 0, 100))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=15))
+    img.paste(shadow, (term_x1 - 20, term_y1 - 10), shadow)
 
-    # Wrap text to fit width
-    wrapped = textwrap.fill(hook, width=24)
+    # Window body
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle([term_x1, term_y1, term_x2, term_y2],
+                            radius=16, fill=palette["bg_alt"])
+
+    # Title bar
+    draw.rounded_rectangle([term_x1, term_y1, term_x2, term_y1 + 50],
+                            radius=16, fill=(palette["bg"][0] + 10, palette["bg"][1] + 10, palette["bg"][2] + 10))
+    # Window controls (dots)
+    draw.ellipse([term_x1 + 25, term_y1 + 18, term_x1 + 45, term_y1 + 38], fill=(255, 95, 86))
+    draw.ellipse([term_x1 + 55, term_y1 + 18, term_x1 + 75, term_y1 + 38], fill=(255, 189, 46))
+    draw.ellipse([term_x1 + 85, term_y1 + 18, term_x1 + 105, term_y1 + 38], fill=(39, 201, 63))
+
+    # Title text
+    f_title = find_font(18, "mono")
+    draw.text((term_x1 + 130, term_y1 + 22), "marium@karachi:~/builds$",
+              fill=palette["muted"], font=f_title)
+
+    # Code content
+    hook = extract_hook(post_text, 100)
+    f_code = find_font(38, "mono")
+    f_prompt = find_font(38, "mono")
+
+    # Wrap hook
+    wrapped = textwrap.fill(hook, width=28)
     lines = wrapped.split("\n")
 
-    # Vertically center the text block
-    line_height = 80
-    total_text_height = len(lines) * line_height
-    y_start = (height - total_text_height) // 2 - 50
-
+    code_y = term_y1 + 110
+    # Prompt symbol
+    draw.text((term_x1 + 40, code_y), "$", fill=palette["accent"], font=f_prompt)
+    # Hook text
     for i, line in enumerate(lines):
-        bbox = draw.textbbox((0, 0), line, font=font_main)
-        text_width = bbox[2] - bbox[0]
-        x = (width - text_width) // 2
-        y = y_start + i * line_height
-        draw.text((x, y), line, fill=template["text_color"], font=font_main)
+        draw.text((term_x1 + 90, code_y + i * 55), line,
+                  fill=palette["text"], font=f_code)
 
-    # Footer branding
-    font_footer = find_font(32, bold=True)
-    font_handle = find_font(26, bold=False)
+    # Cursor blink
+    cursor_y = code_y + len(lines) * 55
+    draw.rectangle([term_x1 + 90, cursor_y + 5, term_x1 + 110, cursor_y + 40],
+                   fill=palette["accent"])
 
-    footer_text = "MARIUM SAJJAD"
-    handle_text = "Full-Stack Dev · Builder · Karachi"
+    # Top label
+    f_label = find_font(24, "bold")
+    draw.text((100, 120), "BUILD LOG", fill=palette["accent2"], font=f_label)
 
-    bbox = draw.textbbox((0, 0), footer_text, font=font_footer)
-    fw = bbox[2] - bbox[0]
-    draw.text(((width - fw) // 2, height - 160), footer_text,
-              fill=template["accent"], font=font_footer)
+    add_branding(draw, W, H, palette)
+    return img
 
-    bbox = draw.textbbox((0, 0), handle_text, font=font_handle)
-    hw = bbox[2] - bbox[0]
-    draw.text(((width - hw) // 2, height - 110), handle_text,
-              fill=template["text_color"], font=font_handle)
 
-    # Bottom accent bar
-    draw.rectangle([(80, height - 90), (200, height - 80)], fill=template["accent"])
+# ============================================================
+# TEMPLATE 2: BOLD QUOTE (for hot takes)
+# ============================================================
+def template_bold_quote(post_text, palette):
+    W, H = 1200, 1200
+    img = make_gradient(W, H, palette["bg"], palette["bg_alt"])
+    draw = ImageDraw.Draw(img)
 
+    # Large quote mark in background
+    f_quote = find_font(400, "bold")
+    draw.text((60, -60), '"', fill=palette["accent"] + (50,) if len(palette["accent"]) == 4 else palette["accent"], font=f_quote)
+
+    # Top label
+    f_label = find_font(26, "bold")
+    draw.text((100, 200), "HOT TAKE", fill=palette["accent2"], font=f_label)
+    draw.rectangle([(100, 240), (180, 244)], fill=palette["accent2"])
+
+    # Main hook
+    hook = extract_hook(post_text, 130)
+    f_main = find_font(70, "bold")
+    wrapped = textwrap.fill(hook, width=20)
+    lines = wrapped.split("\n")
+
+    total_h = len(lines) * 85
+    y_start = (H - total_h) // 2 - 60
+    for i, line in enumerate(lines):
+        draw.text((100, y_start + i * 85), line, fill=palette["text"], font=f_main)
+
+    # Bottom accent
+    draw.rectangle([(100, H - 230), (W - 100, H - 226)], fill=palette["accent"])
+
+    add_branding(draw, W, H, palette)
+    return img
+
+
+# ============================================================
+# TEMPLATE 3: CHECKLIST (for free value posts)
+# ============================================================
+def template_checklist(post_text, palette):
+    W, H = 1200, 1200
+    img = make_gradient(W, H, palette["bg"], palette["bg_alt"])
+    draw = ImageDraw.Draw(img)
+
+    # Top label
+    f_label = find_font(26, "bold")
+    draw.text((100, 120), "FREE GUIDE", fill=palette["accent2"], font=f_label)
+    draw.rectangle([(100, 160), (200, 164)], fill=palette["accent2"])
+
+    # Title
+    hook = extract_hook(post_text, 80)
+    f_title = find_font(56, "bold")
+    wrapped = textwrap.fill(hook, width=22)
+    lines = wrapped.split("\n")
+
+    for i, line in enumerate(lines[:3]):
+        draw.text((100, 220 + i * 70), line, fill=palette["text"], font=f_title)
+
+    # Decorative checklist items (mock)
+    f_check = find_font(34, "regular")
+    check_y = 220 + len(lines[:3]) * 70 + 80
+    sample_items = ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"]
+    for i, item in enumerate(sample_items):
+        y = check_y + i * 70
+        # Checkbox
+        draw.rounded_rectangle([100, y, 145, y + 45], radius=8,
+                                outline=palette["accent"], width=3)
+        # Check mark
+        draw.line([(112, y + 22), (122, y + 32), (138, y + 14)],
+                  fill=palette["accent"], width=4)
+        # Text
+        draw.text((170, y + 5), item + " →", fill=palette["muted"], font=f_check)
+
+    # CTA badge
+    f_badge = find_font(26, "bold")
+    draw.rounded_rectangle([(100, H - 200), (520, H - 140)],
+                            radius=30, fill=palette["accent"])
+    draw.text((130, H - 187), "DM me to get the full guide",
+              fill=palette["bg"], font=f_badge)
+
+    add_branding(draw, W, H, palette)
+    return img
+
+
+# ============================================================
+# TEMPLATE 4: SPLIT REFLECTION (for lessons)
+# ============================================================
+def template_split_reflection(post_text, palette):
+    W, H = 1200, 1200
+    img = make_gradient(W, H, palette["bg"], palette["bg_alt"])
+    draw = ImageDraw.Draw(img)
+
+    # Top label
+    f_label = find_font(26, "bold")
+    draw.text((100, 120), "WHAT I LEARNED", fill=palette["accent2"], font=f_label)
+    draw.rectangle([(100, 160), (250, 164)], fill=palette["accent2"])
+
+    # Big numeric accent
+    f_huge = find_font(280, "bold")
+    draw.text((W - 380, 200), "01", fill=palette["accent"] + (30,) if False else palette["accent"], font=f_huge)
+
+    # Main hook
+    hook = extract_hook(post_text, 130)
+    f_main = find_font(58, "bold")
+    wrapped = textwrap.fill(hook, width=22)
+    lines = wrapped.split("\n")
+
+    y_start = 280
+    for i, line in enumerate(lines):
+        draw.text((100, y_start + i * 75), line, fill=palette["text"], font=f_main)
+
+    # Divider
+    div_y = y_start + len(lines) * 75 + 60
+    draw.line([(100, div_y), (W - 100, div_y)], fill=palette["accent"], width=3)
+
+    # Sub-message
+    f_sub = find_font(32, "regular")
+    sub_lines = ["Building in public.", "Sharing what works (and what doesn't)."]
+    for i, sl in enumerate(sub_lines):
+        draw.text((100, div_y + 40 + i * 50), sl, fill=palette["muted"], font=f_sub)
+
+    add_branding(draw, W, H, palette)
+    return img
+
+
+# ============================================================
+# DISPATCHER
+# ============================================================
+TEMPLATE_MAP = {
+    "build_story": template_code_terminal,
+    "hot_take": template_bold_quote,
+    "free_value": template_checklist,
+    "lesson_learned": template_split_reflection,
+}
+
+
+def generate_card(post_text, post_type="build_story", output_path="post_card.png"):
+    template_fn = TEMPLATE_MAP.get(post_type, template_code_terminal)
+    palette = random.choice(PALETTES)
+    img = template_fn(post_text, palette)
     img.save(output_path, "PNG", optimize=True)
     return output_path
