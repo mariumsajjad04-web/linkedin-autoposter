@@ -181,8 +181,8 @@ def template_code_terminal(post_text, palette):
               fill=palette["muted"], font=f_title)
 
     # Code content
-    hook = extract_hook(post_text, 100)
-    f_code = find_font(38, "mono")
+    hook = extract_hook(post_text, 110)
+    f_code = find_font(36, "mono")
     f_prompt = find_font(38, "mono")
 
     # Wrap hook
@@ -248,6 +248,27 @@ def template_bold_quote(post_text, palette):
 # ============================================================
 # TEMPLATE 3: CHECKLIST (for free value posts)
 # ============================================================
+def extract_numbered_steps(post_text, max_items=5, max_chars=28):
+    """Pull numbered list items (1., 2., etc.) from the post body."""
+    import re
+    items = []
+    for line in post_text.split("\n"):
+        line = line.strip()
+        # Match "1." "1)" "1:" patterns
+        m = re.match(r"^(\d+)[\.\):\-]\s*(.+)$", line)
+        if m:
+            text = m.group(2).strip()
+            # Strip leading quotes/markdown
+            text = text.strip('"\'*`').strip()
+            # Take just the first clause (before period or comma)
+            text = re.split(r"[\.,:]", text, maxsplit=1)[0]
+            text = text[:max_chars] + ("..." if len(text) > max_chars else "")
+            items.append(text)
+            if len(items) >= max_items:
+                break
+    return items
+
+
 def template_checklist(post_text, palette):
     W, H = 1200, 1200
     img = make_gradient(W, H, palette["bg"], palette["bg_alt"])
@@ -255,23 +276,28 @@ def template_checklist(post_text, palette):
 
     # Top label
     f_label = find_font(26, "bold")
-    draw.text((100, 120), "FREE GUIDE", fill=palette["accent2"], font=f_label)
-    draw.rectangle([(100, 160), (200, 164)], fill=palette["accent2"])
+    draw.text((100, 100), "FREE GUIDE", fill=palette["accent2"], font=f_label)
+    draw.rectangle([(100, 140), (200, 144)], fill=palette["accent2"])
 
-    # Title
-    hook = extract_hook(post_text, 80)
-    f_title = find_font(56, "bold")
-    wrapped = textwrap.fill(hook, width=22)
-    lines = wrapped.split("\n")
+    # Title — wrap nicely, smaller font, no truncation
+    hook = extract_hook(post_text, 90)
+    f_title = find_font(46, "bold")
+    wrapped = textwrap.fill(hook, width=26)
+    lines = wrapped.split("\n")[:3]  # Cap at 3 lines visually
 
-    for i, line in enumerate(lines[:3]):
-        draw.text((100, 220 + i * 70), line, fill=palette["text"], font=f_title)
+    title_y = 180
+    for i, line in enumerate(lines):
+        draw.text((100, title_y + i * 58), line, fill=palette["text"], font=f_title)
 
-    # Decorative checklist items (mock)
-    f_check = find_font(34, "regular")
-    check_y = 220 + len(lines[:3]) * 70 + 80
-    sample_items = ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"]
-    for i, item in enumerate(sample_items):
+    # Real numbered items from the post (with fallback)
+    steps = extract_numbered_steps(post_text, max_items=4, max_chars=32)
+    if not steps:
+        steps = ["See post for details", "Step-by-step inside", "Real example included",
+                 "Quick to apply"]
+
+    f_check = find_font(28, "regular")
+    check_y = title_y + len(lines) * 58 + 60
+    for i, item in enumerate(steps):
         y = check_y + i * 70
         # Checkbox
         draw.rounded_rectangle([100, y, 145, y + 45], radius=8,
@@ -279,15 +305,19 @@ def template_checklist(post_text, palette):
         # Check mark
         draw.line([(112, y + 22), (122, y + 32), (138, y + 14)],
                   fill=palette["accent"], width=4)
-        # Text
-        draw.text((170, y + 5), item + " →", fill=palette["muted"], font=f_check)
+        # Text — truncated to fit width
+        draw.text((170, y + 7), item, fill=palette["muted"], font=f_check)
 
-    # CTA badge
-    f_badge = find_font(26, "bold")
-    draw.rounded_rectangle([(100, H - 200), (520, H - 140)],
-                            radius=30, fill=palette["accent"])
-    draw.text((130, H - 187), "DM me to get the full guide",
-              fill=palette["bg"], font=f_badge)
+    # CTA badge — fixed width to prevent overflow
+    f_badge = find_font(24, "bold")
+    cta = "Follow for more"
+    bbox = draw.textbbox((0, 0), cta, font=f_badge)
+    badge_w = bbox[2] - bbox[0] + 60
+    badge_y_top = H - 200
+    badge_y_bot = H - 145
+    draw.rounded_rectangle([(100, badge_y_top), (100 + badge_w, badge_y_bot)],
+                            radius=28, fill=palette["accent"])
+    draw.text((130, badge_y_top + 13), cta, fill=palette["bg"], font=f_badge)
 
     add_branding(draw, W, H, palette)
     return img
